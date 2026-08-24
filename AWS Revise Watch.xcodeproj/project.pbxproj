@@ -6,8 +6,40 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		B004 /* AWSReviseComplications.swift in Sources */ = {isa = PBXBuildFile; fileRef = B002 /* AWSReviseComplications.swift */; };
+		B005 /* AWS Revise Complications.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = B001 /* AWS Revise Complications.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		B013 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A009 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B010;
+			remoteInfo = "AWS Revise Complications";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		B007 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				B005 /* AWS Revise Complications.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		A001 /* AWS Revise Watch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "AWS Revise Watch.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		B001 /* AWS Revise Complications.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "AWS Revise Complications.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
+		B002 /* AWSReviseComplications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AWSReviseComplications.swift; sourceTree = "<group>"; };
+		B003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -26,6 +58,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B006 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -33,6 +72,7 @@
 			isa = PBXGroup;
 			children = (
 				A002 /* AWS Revise Watch App */,
+				B008 /* AWS Revise Complications */,
 				A004 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,8 +81,18 @@
 			isa = PBXGroup;
 			children = (
 				A001 /* AWS Revise Watch.app */,
+				B001 /* AWS Revise Complications.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		B008 /* AWS Revise Complications */ = {
+			isa = PBXGroup;
+			children = (
+				B002 /* AWSReviseComplications.swift */,
+				B003 /* Info.plist */,
+			);
+			path = "AWS Revise Complications";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -55,10 +105,12 @@
 				A007 /* Sources */,
 				A005 /* Frameworks */,
 				A008 /* Resources */,
+				B007 /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				B009 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				A002 /* AWS Revise Watch App */,
@@ -69,6 +121,25 @@
 			productName = "AWS Revise Watch";
 			productReference = A001 /* AWS Revise Watch.app */;
 			productType = "com.apple.product-type.application";
+		};
+		B010 /* AWS Revise Complications */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B014 /* Build configuration list for PBXNativeTarget "AWS Revise Complications" */;
+			buildPhases = (
+				B011 /* Sources */,
+				B006 /* Frameworks */,
+				B012 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "AWS Revise Complications";
+			packageProductDependencies = (
+			);
+			productName = "AWS Revise Complications";
+			productReference = B001 /* AWS Revise Complications.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -99,12 +170,20 @@
 			projectRoot = "";
 			targets = (
 				A006 /* AWS Revise Watch */,
+				B010 /* AWS Revise Complications */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		A008 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B012 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -121,7 +200,23 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B011 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B004 /* AWSReviseComplications.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		B009 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B010 /* AWS Revise Complications */;
+			targetProxy = B013 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		A012 /* Debug */ = {
@@ -210,6 +305,57 @@
 			};
 			name = Release;
 		};
+		B015 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = T5BW64AW3P;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "AWS Revise Complications/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.Erscheinung.AWSReviseWatch.Complications;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Debug;
+		};
+		B016 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = T5BW64AW3P;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "AWS Revise Complications/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.Erscheinung.AWSReviseWatch.Complications;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				VALIDATE_PRODUCT = YES;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -227,6 +373,15 @@
 			buildConfigurations = (
 				A012 /* Debug */,
 				A013 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B014 /* Build configuration list for PBXNativeTarget "AWS Revise Complications" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B015 /* Debug */,
+				B016 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
