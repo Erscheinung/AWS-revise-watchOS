@@ -9,7 +9,7 @@ struct AWSReviseComplications: WidgetBundle {
 }
 
 private struct AWSReviseComplication: Widget {
-    let kind = "AWSReviseComplication"
+    let kind = "com.Erscheinung.AWSReviseWatch.complication.icon"
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: Provider()) { entry in
@@ -20,8 +20,6 @@ private struct AWSReviseComplication: Widget {
         .supportedFamilies([
             .accessoryCircular,
             .accessoryCorner,
-            .accessoryInline,
-            .accessoryRectangular,
         ])
     }
 }
@@ -49,29 +47,38 @@ private struct AWSReviseComplicationView: View {
     let entry: Entry
     @Environment(\.widgetFamily) private var family
 
+    /// Circular and corner complications render in accented/vibrant modes on
+    /// watchOS, so transparent full-color logo pixels can disappear on black.
+    /// Draw the app-icon artwork as a visible complication-safe badge instead.
+    private var icon: some View {
+        ZStack {
+            Circle()
+                .fill(.white)
+
+            Image("ComplicationIcon")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .foregroundStyle(.tint)
+                .widgetAccentable()
+                .padding(6)
+        }
+        .padding(2)
+        .privacySensitive(false)
+    }
+
     var body: some View {
         switch family {
-        case .accessoryCircular:
-            Image(systemName: "cloud.fill")
-                .widgetLabel("AWS")
-        case .accessoryCorner:
-            Text("AWS")
-                .widgetCurvesContent()
-        case .accessoryInline:
-            Label("AWS Revise", systemImage: "cloud.fill")
+        case .accessoryCircular, .accessoryCorner:
+            icon
+                .containerBackground(.clear, for: .widget)
         case .accessoryRectangular:
-            HStack {
-                Image(systemName: "cloud.fill")
-                    .font(.title2)
-                VStack(alignment: .leading) {
-                    Text("AWS REVISE")
-                        .font(.caption2)
-                    Text("Quick review")
-                        .font(.caption)
-                }
-            }
+            icon
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .containerBackground(.clear, for: .widget)
         default:
-            Text("AWS")
+            icon
+                .containerBackground(.clear, for: .widget)
         }
     }
 }

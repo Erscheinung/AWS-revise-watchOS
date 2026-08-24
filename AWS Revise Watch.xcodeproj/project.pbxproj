@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		B004 /* AWSReviseComplications.swift in Sources */ = {isa = PBXBuildFile; fileRef = B002 /* AWSReviseComplications.swift */; };
 		B005 /* AWS Revise Complications.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = B001 /* AWS Revise Complications.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		C001 /* Watch app assets in Complications resources */ = {isa = PBXBuildFile; fileRef = C002 /* Watch app assets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -40,6 +41,7 @@
 		B001 /* AWS Revise Complications.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "AWS Revise Complications.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
 		B002 /* AWSReviseComplications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AWSReviseComplications.swift; sourceTree = "<group>"; };
 		B003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		C002 /* Watch app assets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "AWS Revise Watch App/Assets.xcassets"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -187,6 +189,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C001 /* Watch app assets in Complications resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
