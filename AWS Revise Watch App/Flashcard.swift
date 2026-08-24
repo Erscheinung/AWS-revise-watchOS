@@ -44,6 +44,10 @@ struct Flashcard: Identifiable, Hashable {
 }
 
 extension Flashcard {
+    private static func fact(_ service: String, _ category: Category, _ answer: String, _ takeaway: String = "Think about the requirement this fact helps satisfy in an exam scenario.") -> Flashcard {
+        Flashcard(service: service, category: category, prompt: "What key concept should you recall?", answer: answer, takeaway: takeaway)
+    }
+
     static let deck: [Flashcard] = [
         .init(service: "Lambda", category: .compute, prompt: "Maximum execution time?", answer: "15 minutes", takeaway: "For longer jobs, use ECS, Batch, Step Functions, or an async pattern."),
         .init(service: "Lambda", category: .compute, prompt: "How do you remove cold starts?", answer: "Provisioned Concurrency", takeaway: "It keeps initialized environments ready for predictable latency."),
@@ -81,6 +85,80 @@ extension Flashcard {
         .init(service: "Well-Architected", category: .architecture, prompt: "Least operational effort means…", answer: "Prefer managed/serverless services", takeaway: "The exam often rewards AWS-managed options over self-managed infrastructure."),
         .init(service: "Disaster Recovery", category: .architecture, prompt: "Lowest RTO and RPO strategy?", answer: "Multi-site active-active", takeaway: "It is also the most expensive DR option."),
         .init(service: "Cost", category: .architecture, prompt: "Steady 1–3 year workload discount?", answer: "Savings Plans or Reserved Instances", takeaway: "Savings Plans are more flexible; RIs can offer capacity reservation."),
-        .init(service: "Architecture", category: .architecture, prompt: "Decouple app components?", answer: "Use a queue (SQS)", takeaway: "Queues absorb bursts and let producers and consumers scale independently.")
+        .init(service: "Architecture", category: .architecture, prompt: "Decouple app components?", answer: "Use a queue (SQS)", takeaway: "Queues absorb bursts and let producers and consumers scale independently."),
+
+        // Compute and storage
+        fact("EC2", .compute, "Instance store is ephemeral and is lost on stop or termination.", "Use EBS for persistent block storage."),
+        fact("EC2", .compute, "Spread placement groups support a maximum of 7 instances per Availability Zone.", "Use them for a small number of critical, isolated instances."),
+        fact("EC2", .compute, "Partition placement groups isolate partitions for distributed workloads such as Hadoop and Cassandra."),
+        fact("EC2", .compute, "Dedicated Hosts are for per-socket, per-core licensing and compliance requirements."),
+        fact("Lambda", .compute, "Memory ranges from 128 MB to 10 GB; CPU scales with memory."),
+        fact("Lambda", .compute, "The default regional concurrency quota is 1,000 executions."),
+        fact("Lambda", .compute, "Ephemeral /tmp storage can be configured from 512 MB to 10 GB."),
+        fact("ECS", .compute, "A task role gives application containers AWS permissions; an execution role pulls images and sends logs."),
+        fact("Elastic Beanstalk", .compute, "Beanstalk manages deployments and infrastructure but you retain control of underlying AWS resources."),
+        fact("S3", .storage, "S3 Standard-IA has a 30-day minimum storage duration and retrieval fees."),
+        fact("S3 Glacier", .storage, "Glacier Instant Retrieval offers millisecond retrieval with a 90-day minimum."),
+        fact("S3 Glacier", .storage, "Glacier Deep Archive retrieval takes 12–48 hours and has a 180-day minimum."),
+        fact("S3", .storage, "Lifecycle rules automate transitions between S3 storage classes."),
+        fact("EBS gp3", .storage, "gp3 includes a baseline of 3,000 IOPS and can scale to 16,000 IOPS."),
+        fact("EBS gp2", .storage, "gp2 provides 3 IOPS per GB and can burst to 3,000 IOPS."),
+        fact("EBS io2 Block Express", .storage, "io2 Block Express can deliver up to 256,000 IOPS."),
+        fact("EBS", .storage, "st1 is throughput-optimized HDD for big data and logs; sc1 is low-cost cold HDD."),
+        fact("EFS", .storage, "EFS offers General Purpose or Max I/O performance modes."),
+        fact("EFS", .storage, "EFS throughput modes are Bursting, Provisioned, and Elastic."),
+        fact("FSx", .storage, "FSx for Windows uses SMB, NTFS, and Active Directory integration."),
+        fact("FSx", .storage, "FSx for NetApp ONTAP supports NFS, SMB, and iSCSI."),
+
+        // Databases
+        fact("RDS", .database, "Automated backups support a retention period from 1 to 35 days."),
+        fact("RDS", .database, "You cannot SSH into an RDS DB instance."),
+        fact("RDS Proxy", .database, "RDS Proxy provides connection pooling, IAM authentication, and faster failover."),
+        fact("Aurora", .database, "Aurora Global Database provides cross-Region replication typically under one second."),
+        fact("Aurora", .database, "An Aurora cluster supports one writer and up to 15 reader instances."),
+        fact("DynamoDB", .database, "One WCU supports one 1 KB write per second."),
+        fact("DynamoDB", .database, "One RCU supports one strongly consistent 4 KB read per second."),
+        fact("DynamoDB", .database, "Global Tables provide multi-Region active-active replication."),
+        fact("DynamoDB", .database, "TTL automatically expires items without consuming write throughput."),
+        fact("Redshift", .database, "Redshift is a columnar, massively parallel data warehouse for analytics."),
+        fact("Redshift Spectrum", .database, "Spectrum queries data directly in S3 from Redshift."),
+        fact("ElastiCache", .database, "Memcached is multi-threaded, has no persistence, and suits simple caching."),
+
+        // Network, identity and security
+        fact("VPC", .network, "A VPC IPv4 CIDR can range from /16 to /28."),
+        fact("VPC", .network, "Use a VPC endpoint to privately reach supported AWS services without NAT or an Internet Gateway."),
+        fact("VPC Peering", .network, "VPC peering is not transitive; create direct connections or use Transit Gateway."),
+        fact("Transit Gateway", .network, "Transit Gateway is a hub-and-spoke network service for many VPCs and on-premises networks."),
+        fact("CloudFront", .network, "CloudFront Functions suit lightweight URL rewrites and header manipulation; Lambda@Edge is more capable."),
+        fact("CloudFront", .network, "Field-level encryption protects sensitive fields at the edge."),
+        fact("Route 53", .network, "Route 53 supports Simple, Weighted, Latency, Failover, Geolocation, Geoproximity, and Multi-Value routing."),
+        fact("Route 53", .network, "Health checks can use HTTP, HTTPS, or TCP and run at 30- or 10-second intervals."),
+        fact("ALB", .network, "An Application Load Balancer is Layer 7 and supports host- and path-based routing plus WebSockets."),
+        fact("NLB", .network, "A Network Load Balancer is Layer 4, handles millions of requests per second, and offers static IPs."),
+        fact("Gateway Load Balancer", .network, "GWLB is Layer 3 and uses GENEVE for third-party network appliances."),
+        fact("ELB", .network, "Deregistration delay (connection draining) can be configured from 1 to 3,600 seconds."),
+        fact("IAM", .security, "The root user is for initial setup and should be protected with MFA."),
+        fact("IAM", .security, "A permissions boundary sets the maximum permissions an IAM identity can receive."),
+        fact("KMS", .security, "Envelope encryption uses a data key for data and a KMS key to encrypt that data key."),
+        fact("KMS", .security, "Key policies and IAM policies both control access to KMS keys."),
+        fact("KMS", .security, "Multi-Region keys are designed for cross-Region encryption workflows."),
+        fact("AWS WAF", .security, "WAF can protect ALB, API Gateway, CloudFront, and AppSync."),
+        fact("Shield Advanced", .security, "Shield Advanced adds Layer 7 DDoS protection and DDoS cost protection."),
+        fact("Secrets Manager", .security, "Secrets Manager is built to store and rotate credentials; Parameter Store is a simpler configuration store."),
+
+        // Integration and architecture
+        fact("SQS", .integration, "Standard queues provide at-least-once delivery and best-effort ordering."),
+        fact("SQS FIFO", .integration, "FIFO queues preserve ordering and provide exactly-once processing semantics."),
+        fact("SQS", .integration, "A visibility timeout prevents other consumers receiving a message while it is being processed."),
+        fact("SNS", .integration, "SNS supports pub/sub fan-out and can deliver to SQS, Lambda, HTTP(S), email, and SMS."),
+        fact("Step Functions", .integration, "Step Functions orchestrates multi-step workflows with retries, branching, and state."),
+        fact("Kinesis Data Streams", .integration, "Kinesis Data Streams is for real-time streaming with consumers reading ordered records per shard."),
+        fact("AWS Backup", .architecture, "AWS Backup centrally manages backups across supported AWS services."),
+        fact("DR: Backup & Restore", .architecture, "Backup and restore has the lowest cost but the highest RTO and RPO."),
+        fact("DR: Pilot Light", .architecture, "Pilot light keeps core components running and scales up during a disaster."),
+        fact("DR: Warm Standby", .architecture, "Warm standby runs a scaled-down but functional version that can quickly scale up."),
+        fact("Cost Optimization", .architecture, "For predictable workloads, Savings Plans often offer a flexible commitment compared with Reserved Instances."),
+        fact("Well-Architected", .architecture, "The six pillars are Operational Excellence, Security, Reliability, Performance Efficiency, Cost Optimization, and Sustainability."),
+        fact("Exam Tactic", .architecture, "When requirements say least operational overhead, favor managed AWS services over self-managed EC2 solutions.")
     ]
 }

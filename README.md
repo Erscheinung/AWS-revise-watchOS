@@ -1,6 +1,6 @@
 # AWS Revise Watch
 
-A standalone watchOS companion for fast AWS SAA-C03 recall. The initial deck contains 37 high-yield cards drawn from the AWS SAA-C03 Study Hub: service limits, service-selection cues, architecture patterns, and common exam distinctions.
+A standalone watchOS companion for fast AWS SAA-C03 recall. The deck contains more than 100 high-yield cards drawn from the AWS SAA-C03 Study Hub: service limits, service-selection cues, architecture patterns, and common exam distinctions.
 
 ## Use on Apple Watch
 
