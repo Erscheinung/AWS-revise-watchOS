@@ -6,9 +6,9 @@ A standalone watchOS companion for fast AWS SAA-C03 recall. The deck contains mo
 
 Open `AWS Revise Watch.xcodeproj` in Xcode, choose the **AWS Revise Watch** scheme, set your signing team if Xcode asks, and run it on an Apple Watch or watchOS Simulator.
 
-- Tap a card to reveal its answer; tap again for the next card.
-- After revealing, use **Again** or **Got it**. The latter increments your local review count.
-- Turn the Digital Crown after revealing to move to the next card.
-- Use the grid button to focus on Compute, Storage, Database, Network, Security, Integration, or Architecture.
+- The **Study** home screen scrolls, so every mode and domain remains reachable on smaller Watch displays.
+- **Quick Review** presents full-height, scrollable cards: tap to reveal, then use **Again** or **Got it**. The latter increments your local review count.
+- Choose from six learning modes: Quick Review, Sprint Quiz, Scenario Lab, True / False, Match-Up, and Daily Mix.
+- Every mode provides a 36-prompt run, with multiple choice, architectural scenarios, misconception checks, service matching, and recall formats. You can also start a focused domain review for Compute, Storage, Database, Network, Security, Integration, or Architecture.
 
 The app is intentionally independent of an iPhone companion so it can be installed directly on the watch.

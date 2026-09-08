@@ -5,7 +5,7 @@ struct FlashcardView: View {
     let isShowingAnswer: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 5) {
                 Image(systemName: card.category.symbol)
                 Text(card.category.rawValue.uppercased())
@@ -15,33 +15,32 @@ struct FlashcardView: View {
             .foregroundStyle(card.category.tint)
 
             Text(card.service)
-                .font(.system(.headline, design: .rounded, weight: .bold))
+                .font(.system(.title3, design: .rounded, weight: .bold))
                 .foregroundStyle(.white)
-                .lineLimit(1)
+                .fixedSize(horizontal: false, vertical: true)
 
             Divider().overlay(.white.opacity(0.16))
 
             Text(isShowingAnswer ? card.answer : card.prompt)
                 .font(.system(isShowingAnswer ? .title3 : .body, design: .rounded, weight: .semibold))
                 .foregroundStyle(isShowingAnswer ? card.category.tint : .white)
-                .minimumScaleFactor(0.68)
-                .lineLimit(isShowingAnswer ? 4 : 5)
+                .fixedSize(horizontal: false, vertical: true)
 
             if isShowingAnswer {
                 Text(card.takeaway)
                     .font(.system(size: 11, weight: .regular, design: .rounded))
                     .foregroundStyle(.white.opacity(0.72))
-                    .lineLimit(4)
-                    .minimumScaleFactor(0.72)
-            } else {
-                Spacer(minLength: 0)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if !isShowingAnswer {
                 Label("Tap to reveal", systemImage: "hand.tap")
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .foregroundStyle(.white.opacity(0.55))
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .padding(15)
         .background {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(Color(red: 0.07, green: 0.08, blue: 0.13))
