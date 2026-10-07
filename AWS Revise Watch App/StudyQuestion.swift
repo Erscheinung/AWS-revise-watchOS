@@ -11,14 +11,13 @@ struct StudyQuestion: Identifiable {
 }
 
 enum QuestionBank {
-    /// Every mode intentionally has a 36-question run. The source cards rotate
-    /// across AWS domains so a short Watch session is broad, not repetitive.
+    /// Interleave categories so each run covers the deck instead of only its first entries.
     static func questions(for mode: LearningMode, category: Flashcard.Category? = nil) -> [StudyQuestion] {
-        let deck = category.map { selected in Flashcard.deck.filter { $0.category == selected } } ?? Flashcard.deck
+        let deck = category.map { selected in Flashcard.deck.filter { $0.category == selected } } ?? interleavedDeck()
         let cards = Array(deck.prefix(36))
         let fallback = Flashcard.deck
-        return (0..<36).map { index in
-            let card = cards.isEmpty ? fallback[index % fallback.count] : cards[index % cards.count]
+        return cards.indices.map { index in
+            let card = cards[index]
             let distractors = wrongAnswers(for: card, in: fallback, offset: index)
             switch mode {
             case .review:
@@ -54,16 +53,30 @@ enum QuestionBank {
         }
     }
 
+    private static func interleavedDeck() -> [Flashcard] {
+        let day = Calendar.current.ordinality(of: .day, in: .era, for: .now) ?? 0
+        let groups = Flashcard.Category.allCases.map { category -> [Flashcard] in
+            let cards = Flashcard.deck.filter { $0.category == category }
+            guard !cards.isEmpty else { return [] }
+            let offset = day % cards.count
+            return Array(cards[offset...] + cards[..<offset])
+        }
+        let longest = groups.map(\.count).max() ?? 0
+        return (0..<longest).flatMap { index in groups.compactMap { index < $0.count ? $0[index] : nil } }
+    }
+
     private static func wrongAnswers(for card: Flashcard, in deck: [Flashcard], offset: Int) -> [String] {
-        let candidates = deck.filter { $0.id != card.id }.map(\.answer)
+        let candidates = Array(Set(deck.filter { $0.id != card.id }.map(\.answer))).sorted()
         guard !candidates.isEmpty else { return ["Not applicable", "A different AWS service", "Manual management"] }
-        return (1...3).map { candidates[(offset * 5 + $0 * 11) % candidates.count] }
+        let start = offset * 5 % candidates.count
+        return (0..<3).map { candidates[(start + $0) % candidates.count] }
     }
 
     private static func wrongServices(for card: Flashcard, in deck: [Flashcard], offset: Int) -> [String] {
         let services = Array(Set(deck.map(\.service).filter { $0 != card.service })).sorted()
         guard !services.isEmpty else { return ["Lambda", "Amazon S3", "Amazon RDS"] }
-        return (1...3).map { services[(offset * 7 + $0 * 13) % services.count] }
+        let start = offset * 7 % services.count
+        return (0..<3).map { services[(start + $0) % services.count] }
     }
 
     private static func scenarioPrompt(for card: Flashcard) -> String {

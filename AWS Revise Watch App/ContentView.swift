@@ -17,8 +17,11 @@ struct ContentView: View {
                         Label("\(masteredCount)", systemImage: "checkmark.circle.fill")
                             .font(.system(size: 11, weight: .bold, design: .rounded)).foregroundStyle(.green)
                     }
-                    Text("Six ways to turn AWS facts into fast recall.")
+                    Text("Study, solve, and fly through AWS architecture.")
                         .font(.system(size: 12, weight: .medium, design: .rounded)).foregroundStyle(.secondary)
+
+                    NavigationLink { AWSArcadeView() } label: { ArcadeRow() }
+                        .buttonStyle(.plain)
 
                     ForEach(LearningMode.allCases) { mode in
                         NavigationLink { StudySessionView(mode: mode) } label: { ModeRow(mode: mode) }
@@ -35,6 +38,42 @@ struct ContentView: View {
                     }
                 }.padding(.horizontal, 4).padding(.bottom, 12)
             }.navigationTitle("Study")
+        }
+    }
+}
+
+private struct ArcadeRow: View {
+    var body: some View {
+        HStack(spacing: 10) {
+            ZStack {
+                Circle().fill(.cyan.opacity(0.18))
+                Image(systemName: "gamecontroller.fill")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(.cyan)
+            }
+            .frame(width: 28, height: 28)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("AWS CLOUD RUN")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                Text("Use the Digital Crown to route the next request")
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.tertiary)
+        }
+        .padding(10)
+        .background(
+            LinearGradient(colors: [.cyan.opacity(0.22), .purple.opacity(0.14)], startPoint: .leading, endPoint: .trailing),
+            in: RoundedRectangle(cornerRadius: 15, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .stroke(.cyan.opacity(0.42), lineWidth: 1)
         }
     }
 }
@@ -132,7 +171,7 @@ private struct StudySessionView: View {
         VStack(spacing: 10) {
             Image(systemName: "checkmark.seal.fill").font(.system(size: 36)).foregroundStyle(mode.tint)
             Text("Run complete").font(.system(.title3, design: .rounded, weight: .bold))
-            Text("You explored all 36 \(mode.rawValue.lowercased()) prompts.").font(.system(size: 12, weight: .medium, design: .rounded)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            Text("You explored all \(questions.count) \(mode.rawValue.lowercased()) prompts.").font(.system(size: 12, weight: .medium, design: .rounded)).foregroundStyle(.secondary).multilineTextAlignment(.center)
             Button("Start again") { restart() }.buttonStyle(.borderedProminent).tint(mode.tint)
         }.padding()
     }

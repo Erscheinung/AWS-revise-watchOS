@@ -13,7 +13,7 @@ enum LearningMode: String, CaseIterable, Identifiable {
     var subtitle: String {
         switch self {
         case .review: "Tap, reveal, remember"
-        case .sprint: "10 quick-fire choices"
+        case .sprint: "36 quick-fire choices"
         case .scenario: "Pick the best architecture"
         case .trueFalse: "Catch the AWS myth"
         case .match: "Connect service to use case"
