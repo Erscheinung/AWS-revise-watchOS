@@ -654,21 +654,10 @@ private struct ScaleOpsView: View {
                         }
                     }
                 }.frame(maxHeight: .infinity)
-                ArcadeIntegerCrown(value: $crownInstances, lower: 1, upper: 8,
+                ArcadeIntegerCrown(value: $crownInstances, lower: ScaleOpsState.instanceRange.lowerBound, upper: ScaleOpsState.instanceRange.upperBound,
                                   active: game.status == .playing && game.tutorialStep != .ready,
                                   label: "Crown: \(game.desiredInstances) servers", fontSize: compact ? 16 : 18, focusRequest: crownFocusRequest)
-                HStack(spacing: 3) {
-                    ForEach(1...8, id: \.self) { count in
-                        Button { chooseServers(count) } label: {
-                            Text("\(count)").font(.system(size: 10, weight: .bold, design: .rounded))
-                                .frame(maxWidth: .infinity).frame(height: compact ? 17 : 20)
-                                .foregroundStyle(count <= game.onlineInstances ? .black : .white)
-                                .background(serverColor(count), in: RoundedRectangle(cornerRadius: 4))
-                                .overlay { RoundedRectangle(cornerRadius: 4).stroke(count == game.desiredInstances ? .white : .clear, lineWidth: 1.5) }
-                        }.buttonStyle(.plain).disabled(game.tutorialStep == .ready)
-                            .accessibilityLabel("Choose \(count) servers")
-                    }
-                }
+                serverStrip(compact: compact)
                 Text(game.provisioningMessage).font(.system(size: compact ? 9 : 10, weight: .medium, design: .rounded))
                     .foregroundStyle(game.scalingRemaining > 0 ? .orange : .green).lineLimit(1).minimumScaleFactor(0.8)
                 Text(game.guidance).font(.system(size: compact ? 10 : 11, weight: .bold, design: .rounded))
@@ -700,6 +689,45 @@ private struct ScaleOpsView: View {
             Text("\(Int(value))/s").font(.system(size: 18, weight: .bold, design: .rounded)).monospacedDigit()
         }.foregroundStyle(tint).frame(maxWidth: .infinity)
             .padding(.vertical, 3).background(tint.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func serverStrip(compact: Bool) -> some View {
+        GeometryReader { viewport in
+            let chipWidth: CGFloat = 30
+            ScrollViewReader { strip in
+                ScrollView(.horizontal) {
+                    HStack(spacing: 5) {
+                        ForEach(ScaleOpsState.instanceRange, id: \.self) { count in
+                            Button { chooseServers(count) } label: {
+                                Text("\(count)").font(.system(size: 11, weight: .bold, design: .rounded)).monospacedDigit()
+                                    .frame(width: chipWidth, height: compact ? 21 : 24)
+                                    .foregroundStyle(count <= game.onlineInstances ? .black : .white)
+                                    .background(serverColor(count), in: RoundedRectangle(cornerRadius: 5))
+                                    .overlay { RoundedRectangle(cornerRadius: 5).stroke(count == game.desiredInstances ? .white : .clear, lineWidth: 1.5) }
+                            }.buttonStyle(.plain).disabled(game.tutorialStep == .ready)
+                                .accessibilityLabel("Choose \(count) servers")
+                                .accessibilityAddTraits(count == game.desiredInstances ? .isSelected : [])
+                                .id(count)
+                        }
+                    }
+                    .padding(.horizontal, 2)
+                    .padding(.vertical, 2)
+                }
+                .scrollIndicators(.hidden)
+                // This strip follows the game control; it must not compete with
+                // the visible Crown host for scrolling focus.
+                .scrollDisabled(true)
+                .onAppear { strip.scrollTo(game.desiredInstances, anchor: .center) }
+                .onChange(of: game.desiredInstances) { _, selected in
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        strip.scrollTo(selected, anchor: .center)
+                    }
+                }
+                .onChange(of: viewport.size.width) { _, _ in
+                    strip.scrollTo(game.desiredInstances, anchor: .center)
+                }
+            }
+        }.frame(height: compact ? 25 : 28)
     }
 
     private func serverColor(_ count: Int) -> Color {
@@ -754,7 +782,7 @@ private struct ScaleCapacityMeter: View {
             GeometryReader { available in
                 ZStack(alignment: .leading) {
                     Capsule().fill(tint.opacity(0.15))
-                    Capsule().fill(tint).frame(width: available.size.width * value / 16)
+                    Capsule().fill(tint).frame(width: available.size.width * min(1, max(0, value / Double(ScaleOpsState.instanceRange.upperBound * 2))))
                 }
             }.frame(height: 9)
         }.foregroundStyle(tint)

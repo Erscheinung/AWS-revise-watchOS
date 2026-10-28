@@ -137,6 +137,29 @@ waste.requestCapacity(8)
 for _ in 0..<20 { waste.tick(0.1) }
 check(waste.guidance.contains("Too many servers") && waste.guidance.contains("DOWN"), "Overprovisioning explicitly tells player to reduce servers")
 
+// The scrolling capacity strip and Crown share the same range beyond eight.
+var extendedInput = CrownStepReducer(position: 1, lower: ScaleOpsState.instanceRange.lowerBound, upper: ScaleOpsState.instanceRange.upperBound)
+var extended = ScaleOpsState()
+extended.start(guided: true)
+for count in 2...ScaleOpsState.instanceRange.upperBound {
+    let selected = extendedInput.consume(raw: count * 10, at: Double(count) * 0.2)
+    check(selected == count, "Crown visits every server count beyond eight")
+    extended.requestCapacity(selected!)
+    check(extended.desiredInstances == count, "Capacity accepts each visible chip")
+}
+for _ in 0..<20 { extended.tick(0.1) }
+check(extended.onlineInstances == 16 && extended.capacity == 32, "Sixteen selected servers become online capacity")
+extended.requestCapacity(100)
+check(extended.desiredInstances == 16 && extended.scalingRemaining == 0, "Requests clamp at shared upper limit without restarting provisioning")
+for count in stride(from: 15, through: 1, by: -1) {
+    let selected = extendedInput.consume(raw: count * 10, at: 4 + Double(16 - count) * 0.2)
+    check(selected == count, "Crown reverses through every server chip")
+    extended.requestCapacity(selected!)
+}
+for _ in 0..<20 { extended.tick(0.1) }
+check(extended.onlineInstances == 1 && extended.capacity == 2, "Capacity returns to the first chip after scrolling back")
+check(extended.elapsed == 0 && extended.budget == 100, "Expanded-range practice remains untimed and cost free")
+
 // Scale Ops: desired capacity is distinct from capacity actually online.
 var scaling = ScaleOpsState()
 scaling.start()
@@ -189,7 +212,7 @@ let planned = simulate { run in
     return Int(ceil(expected / 2))
 }
 check(planned.completed && planned.outages == 0 && planned.budget > 0, "Forecast-following policy survives all waves within budget")
-let maximum = simulate { _ in 8 }
+let maximum = simulate { _ in ScaleOpsState.instanceRange.upperBound }
 check(!maximum.completed && maximum.budget == 0 && maximum.elapsed < ScaleOpsState.duration, "Always-max capacity wastes the budget before completion")
 let minimum = simulate { _ in 1 }
 check(!minimum.completed && minimum.outages == 3, "Always-min capacity cannot handle traffic")

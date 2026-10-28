@@ -232,6 +232,7 @@ enum ScaleTutorialStep { case addServer, removeServer, ready, complete }
 // A deliberately compressed capacity-planning simulation, not AWS pricing or
 // provisioning-time estimates. Each instance serves two game requests/second.
 struct ScaleOpsState {
+    static let instanceRange = 1...16
     static let duration: TimeInterval = 42
     static let scaleDelay: TimeInterval = 2
     static let queueLimit: Double = 18
@@ -268,7 +269,7 @@ struct ScaleOpsState {
     var score: Int { max(0, Int(served) + Int(budget) - Int(dropped) * 2) }
     var recommendedInstances: Int {
         let anticipated = nextWaveIn <= 2.5 ? max(demand, nextDemand ?? demand) : demand
-        return min(8, Int(ceil((anticipated + (queue > 1 ? 2 : 0)) / 2)))
+        return min(Self.instanceRange.upperBound, Int(ceil((anticipated + (queue > 1 ? 2 : 0)) / 2)))
     }
     var guidance: String {
         switch tutorialStep {
@@ -305,7 +306,7 @@ struct ScaleOpsState {
 
     mutating func requestCapacity(_ count: Int) {
         guard status == .playing, tutorialStep != .ready else { return }
-        let count = min(8, max(1, count))
+        let count = min(Self.instanceRange.upperBound, max(Self.instanceRange.lowerBound, count))
         guard count != desiredInstances else { return }
         desiredInstances = count
         scalingRemaining = count == onlineInstances ? 0 : Self.scaleDelay
