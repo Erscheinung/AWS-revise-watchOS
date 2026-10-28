@@ -8,7 +8,11 @@ Open `AWS Revise Watch.xcodeproj` in Xcode, choose the **AWS Revise Watch** sche
 
 - The **Study** home screen scrolls, so every mode and domain remains reachable on smaller Watch displays.
 - **Quick Review** presents full-height, scrollable cards: tap to reveal, then use **Again** or **Got it**. The latter increments your local review count.
-- **Cloud Run** is an embedded AWS routing game inspired by the neon flight feel of SpaceShip-Multiplayer. Turn the Digital Crown to steer a packet between three routes (or tap a route), then tap **Route packet**. Correct choices build a streak and score; mistakes cost hull. The next screen explains the architecture choice. Each ten-sector run draws from 21 missions, and the best score is saved on the watch.
+- **Crown Arcade** is a watch-native skill hub with three compact games (no quiz confirmation screens):
+  - **Service Catcher**: turn the Digital Crown to steer a collector, catch the glowing target category, and dodge wrong services and red hazards. Falling speed increases, lives and combos matter, and each catch surfaces an AWS architecture fact.
+  - **Service Sorter**: rotate the Crown through the category carousel while service cards move on a timed conveyor. Dispatch early with a tap or let the deadline resolve automatically; combos reward accurate sorting and mistakes end the run.
+  - **Cloud Vault**: turn the Crown’s safe dial toward a hidden, moving lock position. Visual warmth and proximity haptics guide you; hold the narrow target or tap **SET PIN** to open three increasingly difficult stages.
+  Each game has a concise how-to screen, touch fallbacks, a pause/resume overlay, a replay/results view, and a persisted best score. Leaving the app pauses an active run so time never drains in the background and a run never auto-resumes.
 - Choose from six learning modes: Quick Review, Sprint Quiz, Scenario Lab, True / False, Match-Up, and Daily Mix.
 - Mixed modes draw 36 prompts across AWS domains. Focused domain reviews use the cards available for that domain. The card order rotates daily so more of the deck appears across sessions.
 

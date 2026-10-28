@@ -17,7 +17,7 @@ struct ContentView: View {
                         Label("\(masteredCount)", systemImage: "checkmark.circle.fill")
                             .font(.system(size: 11, weight: .bold, design: .rounded)).foregroundStyle(.green)
                     }
-                    Text("Study, solve, and fly through AWS architecture.")
+                    Text("Study, play, and build AWS instincts.")
                         .font(.system(size: 12, weight: .medium, design: .rounded)).foregroundStyle(.secondary)
 
                     NavigationLink { AWSArcadeView() } label: { ArcadeRow() }
@@ -54,9 +54,9 @@ private struct ArcadeRow: View {
             .frame(width: 28, height: 28)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("AWS CLOUD RUN")
+                Text("CROWN ARCADE")
                     .font(.system(size: 14, weight: .bold, design: .rounded))
-                Text("Use the Digital Crown to route the next request")
+                Text("Three watch-native AWS skill games")
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
