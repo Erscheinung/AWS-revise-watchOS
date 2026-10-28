@@ -9,10 +9,10 @@ Open `AWS Revise Watch.xcodeproj` in Xcode, choose the **AWS Revise Watch** sche
 - The **Study** home screen scrolls, so every mode and domain remains reachable on smaller Watch displays.
 - **Quick Review** presents full-height, scrollable cards: tap to reveal, then use **Again** or **Got it**. The latter increments your local review count.
 - **Crown Arcade** is a watch-native skill hub with three compact games (no quiz confirmation screens):
-  - **Service Catcher**: turn the Digital Crown to steer a collector, catch the glowing target category, and dodge wrong services and red hazards. Falling speed increases, lives and combos matter, and each catch surfaces an AWS architecture fact.
-  - **Service Sorter**: rotate the Crown through the category carousel while service cards move on a timed conveyor. Dispatch early with a tap or let the deadline resolve automatically; combos reward accurate sorting and mistakes end the run.
-  - **Cloud Vault**: turn the Crown’s safe dial toward a hidden, moving lock position. Visual warmth and proximity haptics guide you; hold the narrow target or tap **SET PIN** to open three increasingly difficult stages.
-  Each game has a concise how-to screen, touch fallbacks, a pause/resume overlay, a replay/results view, and a persisted best score. Leaving the app pauses an active run so time never drains in the background and a run never auto-resumes.
+  - **Service Catcher**: turn the Digital Crown to steer a collector, catch the glowing target category, and dodge wrong services and red hazards. Falling speed increases, lives and combos matter, and the result screen shows an AWS architecture fact.
+  - **Service Sorter**: all five destination bins stay visible. Turn the Crown deliberately to move one bin at a time (accelerated events cannot skip bins); tap any bin to send immediately or let the countdown send to the highlighted bin; the first card allows six seconds, answers stay visible briefly, and five mistakes end the run.
+  - **Scale Ops**: first complete an untimed, cost-free add/remove-server exercise, then run a 42-second flash sale. The Crown sets 1–8 desired instances; a two-second provisioning delay separates desired from online capacity. Visible numbered server slots, the online-server throughput formula, traffic/capacity comparisons, a forecast, queue, and budget make the availability–cost tradeoff visible. Three queue overflows or an empty budget end the run. Timing and costs are simplified game units, not AWS estimates.
+  Each game has a concise how-to screen, Crown controls without arrow buttons, a pause/resume overlay, a padded results view with pinned Replay/Arcade actions, and a persisted best score. Leaving the app pauses an active run so time never drains in the background and a run never auto-resumes.
 - Choose from six learning modes: Quick Review, Sprint Quiz, Scenario Lab, True / False, Match-Up, and Daily Mix.
 - Mixed modes draw 36 prompts across AWS domains. Focused domain reviews use the cards available for that domain. The card order rotates daily so more of the deck appears across sessions.
 
@@ -28,3 +28,9 @@ The static deck was refreshed against official AWS documentation on **October 7,
 - [Aurora storage scale](https://docs.aws.amazon.com/rds/latest/auroraextendedcontent/aurora-faq-scalability.html)
 - [API Gateway REST quotas](https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-execution-service-limits-table.html)
 - [EventBridge Pipes](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-pipes.html), [S3 Express One Zone](https://docs.aws.amazon.com/AmazonS3/latest/userguide/directory-bucket-high-performance.html), [DynamoDB global tables](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GlobalTables.html), and [Bedrock Knowledge Bases](https://docs.aws.amazon.com/bedrock/latest/userguide/kb-how-retrieval.html)
+
+The Scale Ops lesson is informed by [EC2 Auto Scaling instance initialization and warmup](https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-default-instance-warmup.html). The simulation compresses startup and capacity changes for play; its two-second delay and budget do not represent AWS guarantees or prices.
+
+## Arcade validation
+
+Run `swiftc "AWS Revise Watch App/AWSArcadeLogic.swift" ArcadeLogicHarness.swift -o /tmp/aws-arcade-logic && /tmp/aws-arcade-logic` for the production-rule harness. It covers accelerated Crown input, jitter/reversal cadence, category traversal and tap mapping, guided practice, feedback timing, pause behavior, provisioning delay, queue overflow, budget exhaustion, and complete Scale Ops strategies. A forecast-following policy survives; always-minimum capacity loses availability, and always-maximum capacity exhausts its budget.

@@ -136,6 +136,8 @@ struct SorterState {
     var crownIndex: Double = 0
     var current: ArcadeService?
     var timeRemaining: TimeInterval = 1.8
+    var feedbackRemaining: TimeInterval = 0
+    var isShowingFeedback: Bool { feedbackRemaining > 0 }
     var cardTravel: Double = 0
     var elapsed: TimeInterval = 0
     var round = 0
@@ -149,78 +151,209 @@ struct SorterState {
 
     var selectedCategory: ServiceCategory { ServiceCategory.allCases[min(ServiceCategory.allCases.count - 1, max(0, Int(crownIndex.rounded())))] }
     mutating func start() {
-        status = .playing; crownIndex = 0; current = nil; timeRemaining = 1.8; cardTravel = 0; elapsed = 0; round = 0; score = 0; mistakes = 0; combo = 0; dispatched = 0
+        status = .playing; crownIndex = 0; current = nil; feedbackRemaining = 0; timeRemaining = 5; cardTravel = 0; elapsed = 0; round = 0; score = 0; mistakes = 0; combo = 0; dispatched = 0
         lastFact = "Dispatch a card to reveal the pattern."; lastEvent = ""; hapticPulse = 0; deal()
     }
-    mutating private func deal() { current = ArcadeCatalog.service(); round += 1; cardTravel = 0; timeRemaining = max(0.82, 1.9 - elapsed * 0.012) }
+    mutating private func deal() { current = ArcadeCatalog.service(); round += 1; cardTravel = 0; timeRemaining = max(3, 6 - Double(round - 1) * 0.12) }
     mutating func tick(_ delta: TimeInterval) {
         guard status == .playing else { return }
         let delta = min(0.1, max(0, delta))
+        if isShowingFeedback {
+            feedbackRemaining = max(0, feedbackRemaining - delta)
+            if feedbackRemaining == 0 { deal() }
+            return
+        }
         elapsed += delta; timeRemaining -= delta; cardTravel = min(1, cardTravel + delta / max(0.82, timeRemaining + delta))
         if timeRemaining <= 0 { resolve() }
     }
     mutating func resolve() {
-        guard status == .playing, let current else { return }
+        guard status == .playing, !isShowingFeedback, let current else { return }
         dispatched += 1
         if current.category == selectedCategory {
-            combo += 1; score += 12 + min(18, combo * 3); lastEvent = "+\(12 + min(18, combo * 3))  MATCH"; lastFact = "\(current.name): \(current.fact)"; hapticPulse += 1
+            combo += 1; score += 12 + min(18, combo * 3); lastEvent = "Correct · \(current.category.rawValue)"; lastFact = "\(current.name): \(current.fact)"; hapticPulse += 1
         } else {
-            mistakes += 1; combo = 0; score = max(0, score - 4); lastEvent = "MISS  \(current.category.rawValue.uppercased())"; lastFact = "\(current.name) belongs to \(current.category.rawValue): \(current.fact)"; hapticPulse += 1
+            mistakes += 1; combo = 0; score = max(0, score - 4); lastEvent = "Answer: \(current.category.rawValue)"; lastFact = "\(current.name) belongs to \(current.category.rawValue): \(current.fact)"; hapticPulse += 1
         }
-        if mistakes >= 5 { status = .results } else { deal() }
+        if mistakes >= 5 { status = .results } else { feedbackRemaining = 1.25 }
+    }
+    mutating func selectCategory(at index: Int) {
+        guard status == .playing else { return }
+        crownIndex = Double(min(ServiceCategory.allCases.count - 1, max(0, index)))
+    }
+    mutating func dispatch(to category: ServiceCategory) {
+        guard status == .playing, !isShowingFeedback,
+              let index = ServiceCategory.allCases.firstIndex(of: category) else { return }
+        crownIndex = Double(index)
+        resolve()
     }
     mutating func nudgeCategory(_ amount: Int) { guard status == .playing else { return }; let count = ServiceCategory.allCases.count; crownIndex = Double((Int(crownIndex.rounded()) + amount + count) % count) }
 }
 
-struct VaultState {
+// Native Crown acceleration can skip several detents in one callback. Keep its
+// raw cumulative position separate from the visible selection. No event can
+// move more than one item, and fast same-direction events are rate-limited.
+struct CrownStepReducer {
+    let lower: Int
+    let upper: Int
+    private(set) var position: Int
+    private(set) var lastRaw = 0
+    private var lastStepTime = -Double.infinity
+    private var lastDirection = 0
+
+    init(position: Int, lower: Int, upper: Int) {
+        self.lower = lower
+        self.upper = upper
+        self.position = min(upper, max(lower, position))
+    }
+
+    mutating func select(_ value: Int) {
+        position = min(upper, max(lower, value))
+        // Touch selection must not recenter or write back to the native Crown.
+    }
+
+    mutating func consume(raw: Int, at time: TimeInterval, enabled: Bool = true) -> Int? {
+        let delta = raw - lastRaw
+        lastRaw = raw
+        guard enabled, delta != 0 else { return nil }
+        let direction = delta > 0 ? 1 : -1
+        let cadence = direction == lastDirection ? 0.16 : 0.08
+        guard time - lastStepTime >= cadence else { return nil }
+        let next = min(upper, max(lower, position + direction))
+        guard next != position else { return nil }
+        position = next
+        lastStepTime = time
+        lastDirection = direction
+        return next
+    }
+}
+
+enum ScaleTutorialStep { case addServer, removeServer, ready, complete }
+
+// A deliberately compressed capacity-planning simulation, not AWS pricing or
+// provisioning-time estimates. Each instance serves two game requests/second.
+struct ScaleOpsState {
+    static let duration: TimeInterval = 42
+    static let scaleDelay: TimeInterval = 2
+    static let queueLimit: Double = 18
+    static let traffic: [Double] = [3, 6, 11, 5, 14, 8, 3]
+
     var status = ArcadeStatus.intro
-    var dial: Double = 0
-    var target: Double = 140
-    var targetWidth: Double = 42
-    var stage = 1
-    var timeRemaining: TimeInterval = 24
     var elapsed: TimeInterval = 0
-    var score = 0
-    var completed = false
-    var combo = 0
-    var holdProgress: TimeInterval = 0
-    var lastFact = "The lock responds to proximity, not a memorized answer."
-    var lastEvent = "Find the warm signal"
+    var tutorialStep = ScaleTutorialStep.complete
+    var isTutorial: Bool { tutorialStep != .complete }
+    var desiredInstances = 2
+    var onlineInstances = 2
+    var scalingRemaining: TimeInterval = 0
+    var queue: Double = 0
+    var budget: Double = 100
+    var served: Double = 0
+    var dropped: Double = 0
+    var outages = 0
     var hapticPulse = 0
-    var didPulseWarm = false
+    var completed = false
+    var endReason = ""
 
-    var distance: Double {
-        let raw = abs(dial - target).truncatingRemainder(dividingBy: 360)
-        return min(raw, 360 - raw)
+    var wave: Int { min(Self.traffic.count - 1, Int(elapsed / 6)) }
+    var demand: Double {
+        switch tutorialStep {
+        case .addServer: return 6
+        case .removeServer, .ready: return 4
+        case .complete: return Self.traffic[wave]
+        }
     }
-    var warmth: Double { max(0, 1 - distance / 150) }
-    var isAligned: Bool { distance <= targetWidth / 2 }
+    var capacity: Double { Double(onlineInstances * 2) }
+    var timeRemaining: TimeInterval { max(0, Self.duration - elapsed) }
+    var nextDemand: Double? { !isTutorial && wave + 1 < Self.traffic.count ? Self.traffic[wave + 1] : nil }
+    var nextWaveIn: TimeInterval { max(0, Double(wave + 1) * 6 - elapsed) }
+    var score: Int { max(0, Int(served) + Int(budget) - Int(dropped) * 2) }
+    var recommendedInstances: Int {
+        let anticipated = nextWaveIn <= 2.5 ? max(demand, nextDemand ?? demand) : demand
+        return min(8, Int(ceil((anticipated + (queue > 1 ? 2 : 0)) / 2)))
+    }
+    var guidance: String {
+        switch tutorialStep {
+        case .addServer: return desiredInstances == 3 ? "Wait: the third server is starting" : "Turn Crown: choose 3 servers"
+        case .removeServer: return desiredInstances == 2 ? "Wait: removing the spare server" : "Traffic fell! Turn down to 2"
+        case .ready: return "You matched traffic and saved cost"
+        case .complete:
+            if desiredInstances < recommendedInstances {
+                return queue > 1 ? "Queue growing: turn UP" : "More traffic coming: turn UP"
+            }
+            if desiredInstances > recommendedInstances { return "Too many servers: turn DOWN" }
+            if scalingRemaining > 0 { return "Capacity changing: watch the queue" }
+            return "Matched: ready for the next wave"
+        }
+    }
+    var provisioningMessage: String {
+        if scalingRemaining > 0 { return "\(onlineInstances) online · change in \(String(format: "%.1f", scalingRemaining))s" }
+        return "\(onlineInstances) online × 2 = \(Int(capacity)) requests/s"
+    }
+    var lesson: String {
+        "EC2 Auto Scaling capacity takes time to become ready. Scale ahead of demand, then scale in to save cost. Points reward served requests and budget left. Timing and costs here are game units."
+    }
 
-    mutating func start() {
-        status = .playing; dial = 0; target = Double.random(in: 0..<360); targetWidth = 44; stage = 1; timeRemaining = 24; elapsed = 0; score = 0; completed = false; combo = 0; holdProgress = 0
-        lastFact = "The lock responds to proximity, not a memorized answer."; lastEvent = "Find the warm signal"; hapticPulse = 0; didPulseWarm = false
+    mutating func start(guided: Bool = false) {
+        self = ScaleOpsState()
+        status = .playing
+        tutorialStep = guided ? .addServer : .complete
     }
+
+    mutating func beginRun() {
+        guard status == .playing, tutorialStep == .ready else { return }
+        start()
+    }
+
+    mutating func requestCapacity(_ count: Int) {
+        guard status == .playing, tutorialStep != .ready else { return }
+        let count = min(8, max(1, count))
+        guard count != desiredInstances else { return }
+        desiredInstances = count
+        scalingRemaining = count == onlineInstances ? 0 : Self.scaleDelay
+    }
+
     mutating func tick(_ delta: TimeInterval) {
         guard status == .playing else { return }
-        let delta = min(0.1, max(0, delta))
-        elapsed += delta; timeRemaining -= delta
-        target = (target + sin(elapsed * (1.0 + Double(stage) * 0.26)) * delta * (8 + Double(stage) * 2)).truncatingRemainder(dividingBy: 360)
-        if isAligned { holdProgress += delta } else { holdProgress = max(0, holdProgress - delta * 1.8) }
-        if warmth > 0.82 && !didPulseWarm { hapticPulse += 1; didPulseWarm = true }
-        if warmth < 0.68 { didPulseWarm = false }
-        if holdProgress >= 0.58 { unlockStage() }
-        if timeRemaining <= 0 { status = .results }
+        let delta = min(0.1, max(0, delta), timeRemaining)
+        if scalingRemaining > 0 {
+            scalingRemaining = max(0, scalingRemaining - delta)
+            if scalingRemaining < 0.000001 {
+                scalingRemaining = 0
+                onlineInstances = desiredInstances
+                hapticPulse += 1
+            }
+        }
+        if isTutorial {
+            // Practice never spends budget, adds backlog, or consumes run time.
+            if tutorialStep == .addServer, onlineInstances == 3, scalingRemaining == 0 {
+                tutorialStep = .removeServer
+                hapticPulse += 1
+            } else if tutorialStep == .removeServer, onlineInstances == 2, scalingRemaining == 0 {
+                tutorialStep = .ready
+                hapticPulse += 1
+            }
+            return
+        }
+        let waiting = queue + demand * delta
+        let processed = min(waiting, capacity * delta)
+        served += processed
+        queue = max(0, waiting - processed)
+        budget = max(0, budget - Double(onlineInstances) * 0.45 * delta)
+        if queue >= Self.queueLimit {
+            // A full queue sheds work, creating one visible service outage.
+            let discarded = queue - Self.queueLimit / 2
+            dropped += discarded
+            queue -= discarded
+            outages += 1
+            hapticPulse += 1
+        }
+        elapsed = min(Self.duration, elapsed + delta)
+        if outages >= 3 { endReason = "Three queue overflows"; status = .results }
+        else if budget <= 0 { endReason = "Budget exhausted"; status = .results }
+        else if timeRemaining < 0.000001 {
+            elapsed = Self.duration
+            completed = true
+            endReason = "Traffic shift handled"
+            status = .results
+        }
     }
-    mutating func setPin() {
-        guard status == .playing else { return }
-        if isAligned { unlockStage() } else { timeRemaining = max(0, timeRemaining - 2.2); combo = 0; lastEvent = "PIN REJECTED  keep searching"; hapticPulse += 1 }
-    }
-    mutating private func unlockStage() {
-        score += 30 + stage * 12 + combo * 4; combo += 1; lastEvent = "STAGE \(stage) OPEN  +\(30 + stage * 12 + (combo - 1) * 4)"
-        lastFact = stage == 1 ? "IAM roles keep credentials temporary and out of your app." : (stage == 2 ? "KMS protects data keys with a managed encryption key." : "Defense in depth combines identity, encryption, and network boundaries.")
-        hapticPulse += 1; holdProgress = 0; didPulseWarm = false
-        if stage >= 3 { completed = true; status = .results } else { stage += 1; targetWidth = max(17, targetWidth - 11); timeRemaining += 5; target = Double.random(in: 0..<360) }
-    }
-    mutating func rotate(_ value: Double) { guard status == .playing else { return }; dial = value.truncatingRemainder(dividingBy: 360) }
-    mutating func nudge(_ amount: Double) { rotate((dial + amount).truncatingRemainder(dividingBy: 360)) }
 }

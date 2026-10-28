@@ -4,41 +4,41 @@ import WatchKit
 // MARK: - Shared arcade content
 
 private enum ArcadeGame: String, CaseIterable, Identifiable {
-    case catcher, sorter, vault
+    case catcher, sorter, scaleOps
     var id: String { rawValue }
     var title: String {
         switch self {
         case .catcher: return "Service Catcher"
         case .sorter: return "Service Sorter"
-        case .vault: return "Cloud Vault"
+        case .scaleOps: return "Scale Ops"
         }
     }
     var subtitle: String {
         switch self {
         case .catcher: return "Catch the right services. Dodge the noise."
         case .sorter: return "Sort a live conveyor under pressure."
-        case .vault: return "Crack a moving cloud lock by feel."
+        case .scaleOps: return "Balance traffic, capacity, and cost."
         }
     }
     var detail: String {
         switch self {
         case .catcher: return "Crown steers the collector"
         case .sorter: return "Crown picks the category"
-        case .vault: return "Crown turns the safe dial"
+        case .scaleOps: return "Crown sets EC2 instance capacity"
         }
     }
     var symbol: String {
         switch self {
         case .catcher: return "arrow.down.to.line.compact"
         case .sorter: return "arrow.left.arrow.right"
-        case .vault: return "dial.medium.fill"
+        case .scaleOps: return "server.rack"
         }
     }
     var tint: Color {
         switch self {
         case .catcher: return .cyan
         case .sorter: return .orange
-        case .vault: return .purple
+        case .scaleOps: return .green
         }
     }
 }
@@ -101,17 +101,135 @@ private struct ArcadeResultView: View {
     let onReplay: () -> Void
     let onDone: () -> Void
     var body: some View {
-        VStack(spacing: 7) {
-            Image(systemName: score > 0 ? "sparkles" : "arrow.counterclockwise.circle.fill").font(.system(size: 32, weight: .bold)).foregroundStyle(game.tint)
-            Text(score > 0 ? "Run complete" : "Keep tuning").font(.system(.headline, design: .rounded, weight: .bold))
-            Text("\(score) pts · best \(best)").font(.system(size: 11, weight: .bold, design: .monospaced)).foregroundStyle(.secondary)
-            Text(summary).font(.system(size: 11, weight: .medium, design: .rounded)).multilineTextAlignment(.center).lineLimit(3)
-            Text(fact).font(.system(size: 10, design: .rounded)).foregroundStyle(.secondary).multilineTextAlignment(.center).lineLimit(4)
+        VStack(spacing: 5) {
+            ScrollViewReader { scroll in
+                ScrollView {
+                    VStack(spacing: 6) {
+                        Image(systemName: score > 0 ? "sparkles" : "arrow.counterclockwise.circle.fill")
+                            .resizable().scaledToFit().frame(width: 24, height: 24).foregroundStyle(game.tint)
+                        Text(score > 0 ? "Run complete" : "Keep tuning").font(.system(size: 15, weight: .bold, design: .rounded))
+                        Text("\(score) pts · best \(best)").font(.system(size: 11, weight: .bold, design: .monospaced)).foregroundStyle(.secondary)
+                        Text(summary).font(.system(size: 11, weight: .medium, design: .rounded))
+                        Text(fact).font(.system(size: 10, design: .rounded)).foregroundStyle(.secondary)
+                    }.multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .top)
+                        .padding(.horizontal, 7).padding(.top, 10).padding(.bottom, 8).id("resultTop")
+                }.defaultScrollAnchor(.top)
+                    .onAppear { scroll.scrollTo("resultTop", anchor: .top) }
+            }
             HStack(spacing: 6) {
-                Button("Replay", action: onReplay).tint(game.tint)
-                Button("Arcade", action: onDone).tint(.secondary)
-            }.buttonStyle(.borderedProminent)
-        }.padding(.horizontal, 5)
+                resultButton("Replay", tint: game.tint, action: onReplay)
+                resultButton("Arcade", tint: .gray, action: onDone)
+            }.padding(.horizontal, 9).padding(.bottom, 8)
+        }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+    private func resultButton(_ title: String, tint: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title).font(.system(size: 12, weight: .bold))
+                .frame(maxWidth: .infinity).frame(height: 30)
+                .background(tint.opacity(0.28), in: Capsule())
+        }.buttonStyle(.plain)
+    }
+}
+
+// This leaf exists only while a game is on screen. Do not put Crown modifiers
+// around the intro/result ScrollViews: they already own their scroll sequencers.
+// Keep the focusable surface separate from buttons so its focus does not wrap
+// their interaction hierarchy, and never register a Crown on a nonfocusable view.
+private struct ArcadeCrownSurface: View {
+    @Binding var value: Double
+    let lower: Double
+    let upper: Double
+    let step: Double
+    let sensitivity: DigitalCrownRotationalSensitivity
+    let continuous: Bool
+    let active: Bool
+    @State private var detent = 0
+    @FocusState private var focused: Bool
+
+    private var detentCount: Int { max(1, Int(((upper - lower) / step).rounded())) }
+    private func position(for value: Double) -> Int {
+        min(detentCount, max(0, Int(((value - lower) / (upper - lower) * Double(detentCount)).rounded())))
+    }
+
+    var body: some View {
+        Rectangle().fill(.black)
+            .focusable()
+            .digitalCrownRotation(
+                detent: $detent, from: 0, through: detentCount, by: 1,
+                sensitivity: sensitivity, isContinuous: continuous,
+                isHapticFeedbackEnabled: false
+            )
+            .focused($focused)
+            .onChange(of: detent) { _, newValue in
+                guard active else { return }
+                value = lower + Double(newValue) / Double(detentCount) * (upper - lower)
+            }
+            .onChange(of: value) { _, newValue in
+                let newPosition = position(for: newValue)
+                if detent != newPosition { detent = newPosition }
+            }
+            .task(id: active) {
+                focused = false
+                guard active else { return }
+                detent = position(for: value)
+                // Let the native surface attach before asking for focus.
+                do { try await Task.sleep(for: .milliseconds(100)) } catch { return }
+                guard !Task.isCancelled else { return }
+                focused = true
+            }
+            .onDisappear { focused = false }
+            .accessibilityLabel("Digital Crown game control")
+    }
+}
+
+// The native Crown value is cumulative and never receives selection echoes.
+// The tested reducer makes each accepted movement one deliberate visible step.
+private struct ArcadeIntegerCrown: View {
+    @Binding var value: Int
+    let active: Bool
+    let label: String
+    let fontSize: CGFloat
+    let focusRequest: Int
+    @State private var rawPosition = 0
+    @State private var input: CrownStepReducer
+    @FocusState private var focused: Bool
+
+    init(value: Binding<Int>, lower: Int, upper: Int, active: Bool, label: String,
+         fontSize: CGFloat = 10, focusRequest: Int = 0) {
+        _value = value
+        self.active = active
+        self.label = label
+        self.fontSize = fontSize
+        self.focusRequest = focusRequest
+        _input = State(initialValue: CrownStepReducer(position: value.wrappedValue, lower: lower, upper: upper))
+    }
+
+    var body: some View {
+        Text(label)
+            .font(.system(size: fontSize, weight: .semibold, design: .rounded))
+            .foregroundStyle(.cyan)
+            .lineLimit(1).minimumScaleFactor(0.8)
+            .frame(maxWidth: .infinity)
+            .focusable()
+            .digitalCrownRotation(detent: $rawPosition, from: -10_000, through: 10_000, by: 1,
+                                  sensitivity: .low, isContinuous: false, isHapticFeedbackEnabled: false)
+            .focused($focused)
+            .onChange(of: rawPosition) { _, raw in
+                if let next = input.consume(raw: raw, at: ProcessInfo.processInfo.systemUptime, enabled: active) {
+                    value = next
+                }
+            }
+            .onChange(of: value) { _, selected in input.select(selected) }
+            .task(id: "\(active)-\(focusRequest)") {
+                focused = false
+                guard active else { return }
+                do { try await Task.sleep(for: .milliseconds(100)) } catch { return }
+                guard !Task.isCancelled else { return }
+                focused = true
+            }
+            .onDisappear { focused = false }
+            .accessibilityLabel(label + ". Turn the Digital Crown slowly to adjust one step.")
     }
 }
 
@@ -122,18 +240,22 @@ struct AWSArcadeView: View {
     @State private var showingHowTo = false
     @AppStorage("serviceCatcherBest") private var catcherBest = 0
     @AppStorage("serviceSorterBest") private var sorterBest = 0
-    @AppStorage("cloudVaultBest") private var vaultBest = 0
+    @AppStorage("scaleOpsBest") private var scaleOpsBest = 0
 
     var body: some View {
-        Group {
-            switch selectedGame {
-            case .none: hub
-            case .catcher: ServiceCatcherView(onDone: { selectedGame = nil })
-            case .sorter: ServiceSorterView(onDone: { selectedGame = nil })
-            case .vault: CloudVaultView(onDone: { selectedGame = nil })
-            }
+        GeometryReader { available in
+            // Measure the navigation container's safe content area. Games must fit
+            // this proposal; their arenas shrink instead of displacing the HUD.
+            Group {
+                switch selectedGame {
+                case .none: hub
+                case .catcher: ServiceCatcherView(onDone: { selectedGame = nil })
+                case .sorter: ServiceSorterView(onDone: { selectedGame = nil })
+                case .scaleOps: ScaleOpsView(onDone: { selectedGame = nil })
+                }
+            }.frame(width: available.size.width, height: available.size.height)
         }
-        .navigationTitle(selectedGame?.title ?? "Arcade")
+        .navigationTitle(selectedGame == nil ? "Arcade" : "")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showingHowTo) { arcadeHowTo }
     }
@@ -150,7 +272,7 @@ struct AWSArcadeView: View {
                     Button { showingHowTo = true } label: { Image(systemName: "questionmark.circle").font(.system(size: 18, weight: .semibold)) }
                         .buttonStyle(.plain).tint(.secondary).accessibilityLabel("How to play the arcade")
                 }
-                Text("Three short skill games. Every catch, sort, and lock teaches a real AWS pattern.")
+                Text("Three short skill games. Catch services, sort categories, and keep EC2 capacity ahead of traffic.")
                     .font(.system(size: 11, weight: .medium, design: .rounded)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 ForEach(ArcadeGame.allCases) { game in
                     Button { selectedGame = game } label: { ArcadeGameCard(game: game, best: best(for: game)) }
@@ -169,16 +291,16 @@ struct AWSArcadeView: View {
                 Text("Service Catcher").font(.system(.headline, design: .rounded, weight: .bold))
                 Text("Steer the collector left and right. Catch the glowing target category, dodge other services and red hazards. The fall speeds up as your streak grows.")
                 Text("Service Sorter").font(.system(.headline, design: .rounded, weight: .bold)).foregroundStyle(.orange)
-                Text("Rotate to the category that matches the conveyor card. Dispatch before the countdown expires—or let the deadline resolve it for you.")
-                Text("Cloud Vault").font(.system(.headline, design: .rounded, weight: .bold)).foregroundStyle(.purple)
-                Text("Turn the dial to find the warmest signal. Hold in the narrow zone or tap SET PIN. Crack three moving stages before time runs out.")
-                Text("The lower buttons are touch fallbacks. Leaving the app pauses an active run; it never drains time or resumes by itself.").font(.system(size: 11, weight: .semibold, design: .rounded)).foregroundStyle(.secondary)
+                Text("All five category bins stay visible. Turn the Crown to highlight a destination; the timer sends the service there. Tap any bin to send immediately.")
+                Text("Scale Ops").font(.system(.headline, design: .rounded, weight: .bold)).foregroundStyle(.purple)
+                Text("Turn the Crown to choose EC2 instances. Watch demand and the next traffic wave: capacity changes take two game seconds. Avoid queue overflows and save budget by scaling down after peaks.")
+                Text("Use the Crown to steer, choose, or scale. Leaving the app pauses an active run; it never drains time or resumes by itself.").font(.system(size: 11, weight: .semibold, design: .rounded)).foregroundStyle(.secondary)
             }.font(.system(size: 11, design: .rounded)).padding(14)
         }.navigationTitle("How to play")
     }
 
     private func best(for game: ArcadeGame) -> Int {
-        switch game { case .catcher: return catcherBest; case .sorter: return sorterBest; case .vault: return vaultBest }
+        switch game { case .catcher: return catcherBest; case .sorter: return sorterBest; case .scaleOps: return scaleOpsBest }
     }
 }
 
@@ -214,17 +336,26 @@ private struct ServiceCatcherView: View {
     @State private var lastTick: Date?
     @State private var lastHaptic = Date.distantPast
     @State private var crownX: Double = 0.5
-    @FocusState private var crownFocused: Bool
 
     var body: some View {
-        Group {
+        VStack(spacing: 0) {
             switch game.status {
             case .intro: intro
             case .playing, .paused: playing
             case .results: results
             }
         }
-        .onAppear { crownFocused = true; lastTick = Date() }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.top, 6)
+        .task(id: game.status) {
+            guard game.status == .playing else { lastTick = nil; return }
+            lastTick = Date()
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: .milliseconds(33)) } catch { return }
+                tick(at: Date())
+            }
+        }
+        .onDisappear { lastTick = nil }
         .onChange(of: scenePhase) { _, phase in
             guard phase != .active, game.status == .playing else { return }
             game.status = .paused; lastTick = nil
@@ -239,63 +370,51 @@ private struct ServiceCatcherView: View {
     }
 
     private var intro: some View {
+        ScrollView {
         VStack(spacing: 8) {
             Image(systemName: ArcadeGame.catcher.symbol).font(.system(size: 34, weight: .bold)).foregroundStyle(.cyan)
             Text("SERVICE CATCHER").font(.system(.headline, design: .rounded, weight: .heavy))
             Text("Catch the glowing category. Dodge other services and red hazards as the cloud accelerates.")
                 .font(.system(size: 11, design: .rounded)).multilineTextAlignment(.center).foregroundStyle(.secondary)
-            Text("CROWN  steer   ·   TAP  nudge").font(.system(size: 9, weight: .bold, design: .monospaced)).foregroundStyle(.cyan)
+            Text("CROWN  steer left / right").font(.system(size: 9, weight: .bold, design: .monospaced)).foregroundStyle(.cyan)
             Button("Start run") { start() }.buttonStyle(.borderedProminent).tint(.cyan)
         }.padding(.horizontal, 8)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Service Catcher. Catch the glowing category and dodge hazards. Turn the Digital Crown to steer.")
+        }
     }
 
     private var playing: some View {
         ZStack {
+            ArcadeCrownSurface(value: $crownX, lower: 0.09, upper: 0.91, step: 0.035, sensitivity: .high, continuous: false, active: game.status == .playing)
             VStack(spacing: 4) {
-                ArcadeHeader(title: "Catcher", tint: .cyan, onPause: pause)
-                HStack(spacing: 6) {
+                ArcadeHeader(title: "Catcher · \(game.score) pts", tint: .cyan, onPause: pause)
+                HStack {
+                    Text("Catch \(game.targetCategory.rawValue)").foregroundStyle(game.targetCategory.tint)
+                    Spacer(minLength: 2)
                     Label("\(game.lives)", systemImage: "heart.fill").foregroundStyle(.pink)
-                    Spacer(); Text("CATCH \(game.targetCategory.rawValue.uppercased())").foregroundStyle(game.targetCategory.tint); Spacer(); Text("\(game.score)").foregroundStyle(.yellow)
-                }.font(.system(size: 9, weight: .heavy, design: .monospaced))
-                CatcherArena(game: game).frame(maxWidth: .infinity, minHeight: 135, maxHeight: 153)
-                    .focusable(true).focused($crownFocused)
-                    .digitalCrownRotation($crownX, from: 0.09, through: 0.91, by: 0.035, sensitivity: .high, isContinuous: false, isHapticFeedbackEnabled: true)
-                    .accessibilityLabel("Falling service arena. Crown position \(Int(crownX * 100)) percent")
-                HStack(spacing: 8) {
-                    Button { game.nudge(-0.18); crownX = game.playerX } label: { Image(systemName: "chevron.left") }
-                    Text(game.lastEvent.isEmpty ? "x\(game.combo) combo" : game.lastEvent).font(.system(size: 9, weight: .bold, design: .rounded)).foregroundStyle(game.lastEvent.contains("+") ? .green : .secondary).lineLimit(1).minimumScaleFactor(0.7)
-                    Button { game.nudge(0.18); crownX = game.playerX } label: { Image(systemName: "chevron.right") }
-                }.buttonStyle(.bordered).tint(.cyan)
-                Text(game.lastFact).font(.system(size: 8, design: .rounded)).foregroundStyle(.secondary).lineLimit(2).multilineTextAlignment(.center)
-            }.padding(.horizontal, 3)
-            if game.status == .paused { ArcadePauseOverlay(tint: .cyan, onResume: resume, onQuit: onDone).padding(.top, 1) }
+                }.font(.system(size: 11, weight: .bold, design: .rounded))
+                CatcherArena(game: game).frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .layoutPriority(-1)
+                    .accessibilityLabel("Falling services. Turn Crown to steer")
+                Text(game.lastEvent.isEmpty ? "Crown moves the blue catcher" : game.lastEvent)
+                    .font(.system(size: 10, weight: .semibold, design: .rounded)).lineLimit(1).minimumScaleFactor(0.8)
+            }.padding(.horizontal, 5).padding(.bottom, 5)
+            if game.status == .paused { ArcadePauseOverlay(tint: .cyan, onResume: resume, onQuit: onDone) }
         }
-        .onChange(of: game.status) { _, status in if status == .playing { crownFocused = true } }
-        .modifier(CatcherTimeline(tick: tick))
     }
 
     private var results: some View {
         ArcadeResultView(game: .catcher, score: game.score, best: best, summary: "\(game.caught) target services caught · \(game.lives) hull left", fact: game.lastFact, onReplay: start, onDone: onDone)
     }
 
-    private func start() { crownX = 0.5; game.start(); crownFocused = true; lastTick = Date(); WKInterfaceDevice.current().play(.start) }
+    private func start() { crownX = 0.5; game.start(); lastTick = Date(); WKInterfaceDevice.current().play(.start) }
     private func pause() { guard game.status == .playing else { return }; game.status = .paused; lastTick = nil }
-    private func resume() { guard game.status == .paused else { return }; game.status = .playing; lastTick = Date(); crownFocused = true }
+    private func resume() { guard game.status == .paused else { return }; game.status = .playing; lastTick = Date() }
     private func tick(at date: Date) {
         guard game.status == .playing else { lastTick = nil; return }
         let delta = min(0.1, max(0, date.timeIntervalSince(lastTick ?? date))); lastTick = date; game.tick(delta)
         if game.status == .results { best = max(best, game.score); WKInterfaceDevice.current().play(.failure) }
-    }
-}
-
-private struct CatcherTimeline: ViewModifier {
-    let tick: (Date) -> Void
-    func body(content: Content) -> some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
-            content.onChange(of: context.date) { _, date in tick(date) }
-        }
     }
 }
 
@@ -332,23 +451,35 @@ private struct ServiceSorterView: View {
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage("serviceSorterBest") private var best = 0
     @State private var game = SorterState()
+    @State private var crownSelection = 0
+    @State private var crownFocusRequest = 0
     @State private var lastTick: Date?
     @State private var lastHaptic = Date.distantPast
-    @FocusState private var crownFocused: Bool
 
     var body: some View {
-        Group {
+        VStack(spacing: 0) {
             switch game.status {
             case .intro: intro
             case .playing, .paused: playing
             case .results: results
             }
         }
-        .onAppear { crownFocused = true; lastTick = Date() }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.top, 6)
+        .task(id: game.status) {
+            guard game.status == .playing else { lastTick = nil; return }
+            lastTick = Date()
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: .milliseconds(33)) } catch { return }
+                tick(at: Date())
+            }
+        }
+        .onDisappear { lastTick = nil }
         .onChange(of: scenePhase) { _, phase in
             guard phase != .active, game.status == .playing else { return }
             game.status = .paused; lastTick = nil
         }
+        .onChange(of: crownSelection) { _, value in game.selectCategory(at: value) }
         .onChange(of: game.hapticPulse) { _, _ in
             let now = Date()
             guard now.timeIntervalSince(lastHaptic) >= 0.25 else { return }
@@ -358,53 +489,65 @@ private struct ServiceSorterView: View {
     }
 
     private var intro: some View {
-        VStack(spacing: 8) {
-            Image(systemName: ArcadeGame.sorter.symbol).font(.system(size: 34, weight: .bold)).foregroundStyle(.orange)
-            Text("SERVICE SORTER").font(.system(.headline, design: .rounded, weight: .heavy))
-            Text("A service arrives on the conveyor. Rotate to its category, then dispatch—or let the deadline decide.")
-                .font(.system(size: 11, design: .rounded)).multilineTextAlignment(.center).foregroundStyle(.secondary)
-            Text("CROWN  choose category   ·   TAP  dispatch").font(.system(size: 9, weight: .bold, design: .monospaced)).foregroundStyle(.orange)
-            Button("Start sort") { start() }.buttonStyle(.borderedProminent).tint(.orange)
-        }.padding(.horizontal, 8).accessibilityLabel("Service Sorter. Turn the Crown to choose the category, then dispatch each arriving service.")
+        VStack(spacing: 6) {
+            Text("SERVICE SORTER").font(.system(size: 16, weight: .heavy, design: .rounded)).foregroundStyle(.orange)
+            ScrollView {
+                VStack(spacing: 7) {
+                    Text("Match each AWS service to a category.")
+                    Text("Turn the Crown to highlight a bin. The timer sends the service there. Tap any bin to send now.")
+                    Text("All five destinations stay visible.").foregroundStyle(.secondary)
+                }.font(.system(size: 12, design: .rounded)).multilineTextAlignment(.center)
+                    .padding(.vertical, 5).padding(.horizontal, 4)
+            }.defaultScrollAnchor(.top)
+            Button(action: start) {
+                Text("Start sorting").font(.system(size: 13, weight: .bold))
+                    .frame(maxWidth: .infinity).frame(height: 32)
+                    .background(.orange.opacity(0.28), in: Capsule())
+            }.buttonStyle(.plain)
+        }.padding(.horizontal, 7).padding(.top, 5).padding(.bottom, 8)
     }
 
     private var playing: some View {
         ZStack {
-            VStack(spacing: 5) {
-                ArcadeHeader(title: "Sorter", tint: .orange, onPause: pause)
-                HStack {
-                    Label("\(game.mistakes)/5", systemImage: "xmark.circle.fill").foregroundStyle(.pink)
-                    Spacer(); Text("ROUND \(game.round)").foregroundStyle(.secondary); Spacer(); Text("\(game.score)").foregroundStyle(.yellow)
-                }.font(.system(size: 9, weight: .heavy, design: .monospaced))
-                SorterCard(game: game).frame(maxWidth: .infinity, minHeight: 65, maxHeight: 74)
-                HStack(spacing: 5) {
-                    Image(systemName: game.selectedCategory.symbol).foregroundStyle(game.selectedCategory.tint)
-                    Text(game.selectedCategory.rawValue.uppercased()).font(.system(size: 12, weight: .heavy, design: .rounded)).foregroundStyle(game.selectedCategory.tint)
-                    Spacer(); Text(String(format: "%.1f", max(0, game.timeRemaining))).font(.system(size: 14, weight: .heavy, design: .monospaced)).foregroundStyle(game.timeRemaining < 0.6 ? .pink : .white)
+            VStack(spacing: 4) {
+                ArcadeHeader(title: "Sort · \(game.score) pts · \(game.mistakes)/5 misses", tint: .orange, onPause: pause)
+                Text(game.isShowingFeedback ? game.lastEvent : "Where does this service belong?")
+                    .font(.system(size: 10, weight: .semibold, design: .rounded)).lineLimit(2).multilineTextAlignment(.center)
+                SorterCard(game: game).frame(maxWidth: .infinity, maxHeight: .infinity).layoutPriority(-1)
+                ArcadeIntegerCrown(value: $crownSelection, lower: 0, upper: ServiceCategory.allCases.count - 1, active: game.status == .playing,
+                                   label: "Crown selects · tap a bin to send", fontSize: 9, focusRequest: crownFocusRequest)
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 3), spacing: 4) {
+                    ForEach(ServiceCategory.allCases) { category in
+                        Button { dispatch(to: category) } label: {
+                            Text(category.rawValue)
+                                .font(.system(size: 9, weight: .bold, design: .rounded))
+                                .lineLimit(1).minimumScaleFactor(0.8)
+                                .foregroundStyle(game.selectedCategory == category ? .black : category.tint)
+                                .frame(maxWidth: .infinity).frame(height: 23)
+                                .background(game.selectedCategory == category ? category.tint : category.tint.opacity(0.14), in: RoundedRectangle(cornerRadius: 7))
+                                .overlay { RoundedRectangle(cornerRadius: 7).stroke(game.selectedCategory == category ? .white : .clear, lineWidth: 1.5) }
+                        }.buttonStyle(.plain).disabled(game.isShowingFeedback)
+                            .accessibilityLabel("Send to \(category.rawValue)")
+                            .accessibilityAddTraits(game.selectedCategory == category ? .isSelected : [])
+                    }
                 }
-                .padding(.horizontal, 8).padding(.vertical, 5).background(game.selectedCategory.tint.opacity(0.13), in: Capsule())
-                .focusable(true).focused($crownFocused)
-                .digitalCrownRotation($game.crownIndex, from: 0, through: Double(ServiceCategory.allCases.count - 1), by: 1, sensitivity: .low, isContinuous: false, isHapticFeedbackEnabled: true)
-                HStack(spacing: 7) {
-                    Button { game.nudgeCategory(-1) } label: { Image(systemName: "chevron.left") }.accessibilityLabel("Previous category")
-                    Button("Dispatch") { dispatch() }.tint(.orange).accessibilityLabel("Dispatch service into selected category")
-                    Button { game.nudgeCategory(1) } label: { Image(systemName: "chevron.right") }.accessibilityLabel("Next category")
-                }.buttonStyle(.borderedProminent)
-                Text(game.lastEvent.isEmpty ? "x\(game.combo) combo" : game.lastEvent).font(.system(size: 9, weight: .bold, design: .rounded)).foregroundStyle(game.lastEvent.contains("+") ? .green : .secondary)
-                Text(game.lastFact).font(.system(size: 8, design: .rounded)).foregroundStyle(.secondary).lineLimit(2).multilineTextAlignment(.center)
-            }.padding(.horizontal, 3)
-            if game.status == .paused { ArcadePauseOverlay(tint: .orange, onResume: resume, onQuit: onDone).padding(.top, 1) }
-        }.modifier(SorterTimeline(tick: tick))
+            }.padding(.horizontal, 5).padding(.bottom, 5)
+            if game.status == .paused { ArcadePauseOverlay(tint: .orange, onResume: resume, onQuit: onDone) }
+        }
     }
 
     private var results: some View {
         ArcadeResultView(game: .sorter, score: game.score, best: best, summary: "\(game.dispatched) services dispatched · \(game.mistakes) mistakes", fact: game.lastFact, onReplay: start, onDone: onDone)
     }
 
-    private func start() { game.start(); crownFocused = true; lastTick = Date(); WKInterfaceDevice.current().play(.start) }
+    private func start() { crownSelection = 0; game.start(); lastTick = Date(); WKInterfaceDevice.current().play(.start) }
     private func pause() { guard game.status == .playing else { return }; game.status = .paused; lastTick = nil }
-    private func resume() { guard game.status == .paused else { return }; game.status = .playing; lastTick = Date(); crownFocused = true }
-    private func dispatch() { game.resolve(); if game.status == .results { best = max(best, game.score); WKInterfaceDevice.current().play(.failure) } }
+    private func resume() { guard game.status == .paused else { return }; game.status = .playing; lastTick = Date() }
+    private func dispatch(to category: ServiceCategory) {
+        guard game.status == .playing, !game.isShowingFeedback else { return }
+        crownSelection = ServiceCategory.allCases.firstIndex(of: category) ?? 0
+        game.dispatch(to: category)
+        crownFocusRequest += 1; if game.status == .results { best = max(best, game.score); WKInterfaceDevice.current().play(.failure) } }
     private func tick(at date: Date) {
         guard game.status == .playing else { lastTick = nil; return }
         let delta = min(0.1, max(0, date.timeIntervalSince(lastTick ?? date))); lastTick = date; game.tick(delta)
@@ -412,61 +555,55 @@ private struct ServiceSorterView: View {
     }
 }
 
-private struct SorterTimeline: ViewModifier {
-    let tick: (Date) -> Void
-    func body(content: Content) -> some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 20.0)) { context in
-            content.onChange(of: context.date) { _, date in tick(date) }
-        }
-    }
-}
-
 private struct SorterCard: View {
     let game: SorterState
     var body: some View {
-        ZStack {
-            HStack(spacing: 13) {
-                ForEach(0..<5, id: \.self) { _ in Capsule().fill(.orange.opacity(0.18)).frame(width: 20, height: 2) }
-            }.offset(x: CGFloat(game.cardTravel * 26 - 13))
-            RoundedRectangle(cornerRadius: 13, style: .continuous).fill(.orange.opacity(0.13))
-            RoundedRectangle(cornerRadius: 13, style: .continuous).stroke(.orange.opacity(0.4), lineWidth: 1)
-            HStack(spacing: 10) {
-                Image(systemName: game.current?.category.symbol ?? "shippingbox.fill").font(.system(size: 22, weight: .bold)).foregroundStyle(game.current?.category.tint ?? .orange)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(game.current?.name ?? "NEXT SERVICE").font(.system(.headline, design: .rounded, weight: .heavy))
-                    Text("CONVEYOR CARD").font(.system(size: 8, weight: .bold, design: .monospaced)).foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 0); Image(systemName: "arrow.right.circle.fill").foregroundStyle(.orange)
-            }.padding(.horizontal, 12)
-        }
-        .accessibilityElement(children: .combine).accessibilityLabel("Incoming service \(game.current?.name ?? "unknown")")
+        VStack(spacing: 2) {
+            Text(game.current?.name ?? "Next service")
+                .font(.system(size: 20, weight: .heavy, design: .rounded)).lineLimit(1).minimumScaleFactor(0.55)
+            Text(game.isShowingFeedback ? "Next card…" : String(format: "Sends in %.1fs", max(0, game.timeRemaining)))
+                .font(.system(size: 9, weight: .bold, design: .rounded)).foregroundStyle(.secondary)
+        }.frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(.orange.opacity(0.13), in: RoundedRectangle(cornerRadius: 10))
     }
 }
 
-// MARK: - Cloud Vault
+// MARK: - Scale Ops
 
-private struct CloudVaultView: View {
+private struct ScaleOpsView: View {
     let onDone: () -> Void
     @Environment(\.scenePhase) private var scenePhase
-    @AppStorage("cloudVaultBest") private var best = 0
-    @State private var game = VaultState()
+    @AppStorage("scaleOpsBest") private var best = 0
+    @State private var game = ScaleOpsState()
+    @State private var crownInstances = 2
+    @State private var crownFocusRequest = 0
     @State private var lastTick: Date?
     @State private var lastHaptic = Date.distantPast
-    @FocusState private var crownFocused: Bool
 
     var body: some View {
-        Group {
+        VStack(spacing: 0) {
             switch game.status {
             case .intro: intro
             case .playing, .paused: playing
             case .results: results
             }
         }
-        .onAppear { crownFocused = true; lastTick = Date() }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.top, 6)
+        .task(id: game.status) {
+            guard game.status == .playing else { lastTick = nil; return }
+            lastTick = Date()
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: .milliseconds(33)) } catch { return }
+                tick(at: Date())
+            }
+        }
+        .onDisappear { lastTick = nil }
         .onChange(of: scenePhase) { _, phase in
             guard phase != .active, game.status == .playing else { return }
             game.status = .paused; lastTick = nil
         }
+        .onChange(of: crownInstances) { _, value in game.requestCapacity(value) }
         .onChange(of: game.hapticPulse) { _, _ in
             let now = Date()
             guard now.timeIntervalSince(lastHaptic) >= 0.25 else { return }
@@ -476,79 +613,152 @@ private struct CloudVaultView: View {
     }
 
     private var intro: some View {
-        VStack(spacing: 8) {
-            Image(systemName: ArcadeGame.vault.symbol).font(.system(size: 34, weight: .bold)).foregroundStyle(.purple)
-            Text("CLOUD VAULT").font(.system(.headline, design: .rounded, weight: .heavy))
-            Text("Turn the physical dial until the signal warms. Hold the narrow zone or tap SET PIN to crack three moving locks.")
-                .font(.system(size: 11, design: .rounded)).multilineTextAlignment(.center).foregroundStyle(.secondary)
-            Text("CROWN  turn   ·   TAP  set pin").font(.system(size: 9, weight: .bold, design: .monospaced)).foregroundStyle(.purple)
-            Button("Crack vault") { start() }.buttonStyle(.borderedProminent).tint(.purple)
-        }.padding(.horizontal, 8).accessibilityLabel("Cloud Vault. Turn the Crown to find the warm signal, then hold or tap Set Pin to crack three locks.")
+        VStack(spacing: 7) {
+            Text("SCALE OPS").font(.system(size: 17, weight: .heavy, design: .rounded)).foregroundStyle(.green)
+            ScrollView {
+                VStack(spacing: 8) {
+                    Text("Run a flash sale.").font(.system(size: 15, weight: .bold, design: .rounded))
+                    Text("Keep requests flowing without spending all your budget.")
+                    Text("First, try adding and removing a server. Practice is untimed and costs nothing.").foregroundStyle(.secondary)
+                }.font(.system(size: 12, design: .rounded)).multilineTextAlignment(.center)
+                    .padding(.vertical, 6).padding(.horizontal, 4)
+            }.defaultScrollAnchor(.top)
+            Button(action: start) {
+                Text("Learn the controls").font(.system(size: 13, weight: .bold))
+                    .frame(maxWidth: .infinity).frame(height: 32)
+                    .background(.green.opacity(0.25), in: Capsule())
+            }.buttonStyle(.plain)
+        }.padding(.horizontal, 7).padding(.top, 5).padding(.bottom, 8)
     }
 
     private var playing: some View {
+        GeometryReader { available in
+        let compact = available.size.height < 195
         ZStack {
-            VStack(spacing: 4) {
-                ArcadeHeader(title: "Vault", tint: .purple, onPause: pause)
-                HStack { Text("LOCK \(game.stage)/3").foregroundStyle(.purple); Spacer(); Text(String(format: "%02d", max(0, Int(game.timeRemaining)))).foregroundStyle(game.timeRemaining < 7 ? .pink : .white); Spacer(); Text("\(game.score)").foregroundStyle(.yellow) }
-                    .font(.system(size: 9, weight: .heavy, design: .monospaced))
-                VaultDial(game: game).frame(maxWidth: .infinity, minHeight: 139, maxHeight: 154)
-                    .focusable(true).focused($crownFocused)
-                    .digitalCrownRotation($game.dial, from: 0, through: 359, by: 2, sensitivity: .high, isContinuous: true, isHapticFeedbackEnabled: true)
-                    .accessibilityLabel("Vault dial. Signal warmth \(Int(game.warmth * 100)) percent. Hold when aligned.")
-                HStack(spacing: 7) {
-                    Button { game.nudge(-14) } label: { Image(systemName: "chevron.left") }.accessibilityLabel("Turn dial left")
-                    Button("SET PIN") { pin() }.tint(.purple).accessibilityLabel("Set pin at current dial position")
-                    Button { game.nudge(14) } label: { Image(systemName: "chevron.right") }.accessibilityLabel("Turn dial right")
-                }.buttonStyle(.borderedProminent)
-                Text(game.lastEvent).font(.system(size: 9, weight: .bold, design: .rounded)).foregroundStyle(game.lastEvent.contains("OPEN") ? .green : .secondary).lineLimit(1)
-                Text(game.lastFact).font(.system(size: 8, design: .rounded)).foregroundStyle(.secondary).lineLimit(2).multilineTextAlignment(.center)
-            }.padding(.horizontal, 3)
-            if game.status == .paused { ArcadePauseOverlay(tint: .purple, onResume: resume, onQuit: onDone).padding(.top, 1) }
-        }.modifier(VaultTimeline(tick: tick))
+            VStack(spacing: compact ? 2 : 3) {
+                ArcadeHeader(title: game.isTutorial ? "Practice · no cost or timer" : "Flash sale · \(Int(ceil(game.timeRemaining)))s", tint: .green, onPause: pause)
+                Text(game.isTutorial ? (game.tutorialStep == .addServer ? "1. Add a server for more traffic" : "2. Remove a server to save cost") :
+                     (game.nextDemand.map { "Next traffic: \(Int($0))/s in \(Int(ceil(game.nextWaveIn)))s" } ?? "Final wave · save your budget"))
+                    .font(.system(size: 10, weight: .bold, design: .rounded)).foregroundStyle(.yellow)
+                    .lineLimit(1).minimumScaleFactor(0.75)
+                Group {
+                    if compact {
+                        HStack(spacing: 5) {
+                            compactMetric("Traffic needs", value: game.demand, tint: .orange)
+                            compactMetric("Servers handle", value: game.capacity, tint: .green)
+                        }
+                    } else {
+                        VStack(spacing: 4) {
+                            ScaleCapacityMeter(title: "Traffic needs", value: game.demand, tint: .orange)
+                            ScaleCapacityMeter(title: "Servers handle", value: game.capacity, tint: .green)
+                        }
+                    }
+                }.frame(maxHeight: .infinity)
+                ArcadeIntegerCrown(value: $crownInstances, lower: 1, upper: 8,
+                                  active: game.status == .playing && game.tutorialStep != .ready,
+                                  label: "Crown: \(game.desiredInstances) servers", fontSize: compact ? 16 : 18, focusRequest: crownFocusRequest)
+                HStack(spacing: 3) {
+                    ForEach(1...8, id: \.self) { count in
+                        Button { chooseServers(count) } label: {
+                            Text("\(count)").font(.system(size: 10, weight: .bold, design: .rounded))
+                                .frame(maxWidth: .infinity).frame(height: compact ? 17 : 20)
+                                .foregroundStyle(count <= game.onlineInstances ? .black : .white)
+                                .background(serverColor(count), in: RoundedRectangle(cornerRadius: 4))
+                                .overlay { RoundedRectangle(cornerRadius: 4).stroke(count == game.desiredInstances ? .white : .clear, lineWidth: 1.5) }
+                        }.buttonStyle(.plain).disabled(game.tutorialStep == .ready)
+                            .accessibilityLabel("Choose \(count) servers")
+                    }
+                }
+                Text(game.provisioningMessage).font(.system(size: compact ? 9 : 10, weight: .medium, design: .rounded))
+                    .foregroundStyle(game.scalingRemaining > 0 ? .orange : .green).lineLimit(1).minimumScaleFactor(0.8)
+                Text(game.guidance).font(.system(size: compact ? 10 : 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(game.desiredInstances > game.recommendedInstances ? .orange : .white)
+                    .lineLimit(2).multilineTextAlignment(.center).minimumScaleFactor(0.85)
+                if game.tutorialStep == .ready {
+                    Button(action: beginRun) {
+                        Text("Start the flash sale").font(.system(size: 12, weight: .bold))
+                            .frame(maxWidth: .infinity).frame(height: 27)
+                            .background(.green.opacity(0.25), in: Capsule())
+                    }.buttonStyle(.plain)
+                } else if !game.isTutorial {
+                    HStack(spacing: 3) {
+                        Text("Queue \(Int(ceil(game.queue)))/18").foregroundStyle(game.queue > 9 ? .pink : .white)
+                        Spacer(minLength: 1)
+                        Text("Budget \(Int(ceil(game.budget)))").foregroundStyle(game.budget < 20 ? .pink : .cyan)
+                        Text("\(game.outages)/3!").foregroundStyle(.pink)
+                    }.font(.system(size: 10, weight: .bold, design: .rounded)).lineLimit(1).minimumScaleFactor(0.8)
+                }
+            }.padding(.horizontal, 5).padding(.bottom, 5)
+            if game.status == .paused { ArcadePauseOverlay(tint: .green, onResume: resume, onQuit: onDone) }
+        }
+        }
+    }
+
+    private func compactMetric(_ title: String, value: Double, tint: Color) -> some View {
+        VStack(spacing: 1) {
+            Text(title).font(.system(size: 9, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.85)
+            Text("\(Int(value))/s").font(.system(size: 18, weight: .bold, design: .rounded)).monospacedDigit()
+        }.foregroundStyle(tint).frame(maxWidth: .infinity)
+            .padding(.vertical, 3).background(tint.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func serverColor(_ count: Int) -> Color {
+        if count > min(game.onlineInstances, game.desiredInstances), count <= max(game.onlineInstances, game.desiredInstances) { return .orange.opacity(0.8) }
+        return count <= game.onlineInstances ? .green : .gray.opacity(0.22)
+    }
+    private func chooseServers(_ count: Int) {
+        guard game.status == .playing, game.tutorialStep != .ready else { return }
+        crownInstances = count
+        game.requestCapacity(count)
+        crownFocusRequest += 1
+    }
+    private func beginRun() {
+        game.beginRun()
+        crownInstances = game.desiredInstances
+        crownFocusRequest += 1
+        lastTick = Date()
     }
 
     private var results: some View {
-        ArcadeResultView(game: .vault, score: game.score, best: best, summary: game.completed ? "All three locks opened" : "Reached lock \(game.stage) with \(game.score) points", fact: game.lastFact, onReplay: start, onDone: onDone)
+        ArcadeResultView(game: .scaleOps, score: game.score, best: best,
+                         summary: "\(game.endReason). \(Int(game.served)) served · \(Int(game.dropped)) dropped · \(Int(game.budget)) budget left",
+                         fact: game.lesson, onReplay: start, onDone: onDone)
     }
 
-    private func start() { game.start(); crownFocused = true; lastTick = Date(); WKInterfaceDevice.current().play(.start) }
+    private func start() { game.start(guided: true); crownInstances = 2; lastTick = Date(); WKInterfaceDevice.current().play(.start) }
     private func pause() { guard game.status == .playing else { return }; game.status = .paused; lastTick = nil }
-    private func resume() { guard game.status == .paused else { return }; game.status = .playing; lastTick = Date(); crownFocused = true }
-    private func pin() { game.setPin(); if game.status == .results { best = max(best, game.score); WKInterfaceDevice.current().play(.success) } }
+    private func resume() { guard game.status == .paused else { return }; game.status = .playing; lastTick = Date() }
     private func tick(at date: Date) {
         guard game.status == .playing else { lastTick = nil; return }
-        let delta = min(0.1, max(0, date.timeIntervalSince(lastTick ?? date))); lastTick = date; game.tick(delta)
-        if game.status == .results { best = max(best, game.score); WKInterfaceDevice.current().play(.success) }
-    }
-}
-
-private struct VaultTimeline: ViewModifier {
-    let tick: (Date) -> Void
-    func body(content: Content) -> some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 20.0)) { context in
-            content.onChange(of: context.date) { _, date in tick(date) }
+        let delta = min(0.1, max(0, date.timeIntervalSince(lastTick ?? date)))
+        lastTick = date
+        game.tick(delta)
+        if game.status == .results {
+            best = max(best, game.score)
+            WKInterfaceDevice.current().play(game.completed ? .success : .failure)
         }
     }
 }
 
-private struct VaultDial: View {
-    let game: VaultState
+private struct ScaleCapacityMeter: View {
+    let title: String
+    let value: Double
+    let tint: Color
     var body: some View {
-        GeometryReader { proxy in
-            let size = min(proxy.size.width, proxy.size.height)
-            ZStack {
-                Circle().fill(Color.black.opacity(0.34))
-                Circle().stroke(.purple.opacity(0.25), lineWidth: 12)
-                Circle().trim(from: 0, to: CGFloat(game.warmth)).stroke(Color(red: 0.45 + game.warmth * 0.45, green: 0.15 + game.warmth * 0.6, blue: 0.95), style: StrokeStyle(lineWidth: 9, lineCap: .round)).rotationEffect(.degrees(-90))
-                ForEach(0..<12, id: \.self) { index in
-                    Capsule().fill(.white.opacity(index % 3 == 0 ? 0.7 : 0.25)).frame(width: 2, height: index % 3 == 0 ? 10 : 5).offset(y: -size * 0.39).rotationEffect(.degrees(Double(index) * 30))
+        VStack(spacing: 2) {
+            HStack {
+                Text(title)
+                Spacer(minLength: 1)
+                Text("\(Int(value))/s").monospacedDigit()
+            }.font(.system(size: 12, weight: .bold, design: .rounded)).lineLimit(1).minimumScaleFactor(0.8)
+            GeometryReader { available in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(tint.opacity(0.15))
+                    Capsule().fill(tint).frame(width: available.size.width * value / 16)
                 }
-                Capsule().fill(game.warmth > 0.78 ? .yellow : .white).frame(width: 4, height: size * 0.27).offset(y: -size * 0.18).rotationEffect(.degrees(game.dial))
-                Circle().fill(game.warmth > 0.82 ? .yellow : .purple).frame(width: 28, height: 28).overlay(Image(systemName: game.isAligned ? "lock.open.fill" : "lock.fill").font(.system(size: 12, weight: .bold)).foregroundStyle(.black))
-                VStack(spacing: 0) { Text("SIGNAL").font(.system(size: 7, weight: .bold, design: .monospaced)); Text("\(Int(game.warmth * 100))%").font(.system(size: 11, weight: .heavy, design: .monospaced)) }.foregroundStyle(.white.opacity(0.85)).offset(y: size * 0.29)
-            }.frame(maxWidth: .infinity, maxHeight: .infinity).contentShape(Circle()).accessibilityElement(children: .combine).accessibilityLabel("Dial signal \(Int(game.warmth * 100)) percent warm")
-        }
+            }.frame(height: 9)
+        }.foregroundStyle(tint)
+            .accessibilityElement(children: .combine)
     }
 }
 
